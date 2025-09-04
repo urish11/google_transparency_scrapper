@@ -1,0 +1,14 @@
+streamlit
+selenium
+pandas
+beautifulsoup4
+bs4
+requests
+lxml
+openpyxl 
+google-genai
+langdetect
+tokencost
+imagehash
+pillow
+opencv-python-headless
