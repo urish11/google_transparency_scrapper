@@ -646,37 +646,43 @@ def scrape_google_ads(term, max_creatives = 200):
         advertisor_id = creatives["Advertisor Id"]
         for creative_id in creatives["Creative_Ids"]:
             try:
+                print(advertisor_id , creative_id)
                 details_json =a.get_detailed_ad(advertisor_id,creative_id)
                 print(details_json)
                 ad_title = details_json['Ad Title']
                 landing_page = details_json['Ad Link']
-                if details_json['Ad Title'] is '':
+                if details_json['Ad Title'] == '':
                     # st.text('souping')
                     req = requests.get(details_json['Ad Link'])
                     html = req.text
                     soup = BeautifulSoup(html, "html.parser")
                     elem = soup.find("a", attrs={"data-asoch-targets": re.compile(r"ad0.*title|title.*ad0", re.I)})
-                    ad_title = elem.get_text(separator=" ", strip=True)
+                    ad_title = elem.get_text(separator=" ", strip=True)[0]
                     # st.text('title' + ad_title)
                     redirect_link = elem["href"]
                     url_parse = urlparse(redirect_link)
                     qs = parse_qs(url_parse.query)
                     landing_page = qs['adurl'][0]
-            except:
-                pass
+                    # st.text(ad_title)
 
+                else:
+                    ad_title= details_json['Ad Title'][0]
+            except Exception as e:
+                st.text(e)
+
+            st.text( ad_title)
 
             ads_data.append({ 
-                 'Search_Term': term,
+                    'Search_Term': term,
                 #  'Status': status,
-                 'Text': ad_title,
-                 'Count': 1,
-                 'Media_URL': details_json['Ad Link'],
-                 'Landing_Page': landing_page,
+                    'Text': ad_title,
+                    'Count': 1,
+                    'Media_URL': details_json['Ad Link'],
+                    'Landing_Page': landing_page,
                 #  'Page ID' :page_id,
                 #  'Page Name' : page_name
                 "Last_Shown" : details_json['Last Shown']
-             })
+                })
 
     if len(ads_data) > 0:
         return pd.DataFrame(ads_data)
@@ -798,7 +804,7 @@ st.info("ℹ️ WebDriver configured for Streamlit Cloud.", icon="☁️")
 
 col1, col2 = st.columns(2)
 with col1:
-    max_creatives = st.slider("Max creatives to pull", min_value=1, max_value=500, value=200)
+    max_creatives = st.slider("Max creatives to pull", min_value=1, max_value=2000, value=200)
 
 
 
@@ -822,7 +828,7 @@ if st.button("🚀 Scrape All Terms in Cloud", type="primary"):
             # --- [Identical scraping loop as before] ---
             for i, term in enumerate(search_terms):
                 term_start_time = time.time()
-                overall_status_placeholder.info(f"Processing term {i+1}/{len(search_terms)}: '{term}'... total scraped : {count_total}")
+                overall_status_placeholder.info(f"Processing term {i+1}/{len(search_terms)}: '{term}'... total scraped : {i+1}")
                 encoded_term = urllib.parse.quote_plus(term)
             
 
