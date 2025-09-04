@@ -12,3 +12,4 @@ tokencost
 imagehash
 pillow
 opencv-python-headless
+Google-Ads-Transparency-Scraper
