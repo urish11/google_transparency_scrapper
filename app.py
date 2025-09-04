@@ -668,9 +668,9 @@ def scrape_google_ads(term, max_creatives = 200):
                 else:
                     ad_title= details_json['Ad Title'][0]
             except Exception as e:
-                st.text(e)
+                print(e)
 
-            st.text( ad_title)
+            # st.text( ad_title)
 
             ads_data.append({ 
                     'Search_Term': term,
