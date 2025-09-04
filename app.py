@@ -3,13 +3,13 @@ from bs4 import BeautifulSoup
 import json
 import requests 
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import WebDriverException, TimeoutException
+# from selenium import webdriver
+# from selenium.webdriver.chrome.service import Service
+# from selenium.webdriver.chrome.options import Options
+# from selenium.webdriver.common.by import By
+# from selenium.webdriver.support.ui import WebDriverWait
+# from selenium.webdriver.support import expected_conditions as EC
+# from selenium.common.exceptions import WebDriverException, TimeoutException
 import time
 from datetime import datetime
 import traceback
@@ -29,9 +29,12 @@ from tokencost import count_string_tokens
 import imagehash
 from google.genai import types
 import gc
+from GoogleAds.main import GoogleAds, show_regions_list
+from urllib.parse import urlparse, parse_qs
 
-st.set_page_config(layout="wide",page_title= "FB Scrape", page_icon="🚀")
-
+import re
+st.set_page_config(layout="wide",page_title= "Google Scrape", page_icon="🥽")
+a = GoogleAds()
 def get_secret(key: str, default=None):
     """Fetch a secret from Streamlit or fall back to environment variables."""
     try:
@@ -308,331 +311,378 @@ if 'final_merged_df' not in st.session_state:
 # --- Scraping Function (scrape_facebook_ads) ---
 # [NO CHANGES NEEDED TO THE scrape_facebook_ads function itself from the previous version]
 # ... (Keep the entire function as it was) ...
-def scrape_facebook_ads(url, search_term, scroll_pause_time=5, max_scrolls=50):
-    """
-    Scrapes ads from a given Facebook Ads Library URL using Selenium (Cloud-ready).
+# # def scrape_facebook_ads(url, search_term, scroll_pause_time=5, max_scrolls=50):
+#     """
+#     Scrapes ads from a given Facebook Ads Library URL using Selenium (Cloud-ready).
 
-    Args:
-        url (str): The specific Facebook Ads Library URL to scrape (with q= term).
-        search_term (str): The search term used for this specific scrape run.
-        scroll_pause_time (int): Base pause time between scrolls.
-        max_scrolls (int): Maximum number of scroll attempts.
+#     Args:
+#         url (str): The specific Facebook Ads Library URL to scrape (with q= term).
+#         search_term (str): The search term used for this specific scrape run.
+#         scroll_pause_time (int): Base pause time between scrolls.
+#         max_scrolls (int): Maximum number of scroll attempts.
 
-    Returns:
-        pandas.DataFrame: A DataFrame containing the scraped ad data, or None if error.
-        list: Status messages.
-    """
-    status_messages = []
-    ads_data = []
-    driver = None
+#     Returns:
+#         pandas.DataFrame: A DataFrame containing the scraped ad data, or None if error.
+#         list: Status messages.
+#     """
+#     status_messages = []
+#     ads_data = []
+#     driver = None
 
-    status_messages.append(f"Attempting to initialize WebDriver for term: '{search_term}' in cloud environment...")
-    try:
-        options = Options()
-        options.add_argument("--headless")  # Run headless REQUIRED for Streamlit Cloud
-        options.add_argument("--no-sandbox")  # REQUIRED
-        options.add_argument("--disable-dev-shm-usage")  # REQUIRED
-        options.add_argument("--disable-gpu") # Also often recommended
-        options.add_argument("--window-size=1920,1080") # Can be helpful
-        options.add_argument('--log-level=3') # Suppress logs
+#     status_messages.append(f"Attempting to initialize WebDriver for term: '{search_term}' in cloud environment...")
+#     try:
+#         options = Options()
+#         options.add_argument("--headless")  # Run headless REQUIRED for Streamlit Cloud
+#         options.add_argument("--no-sandbox")  # REQUIRED
+#         options.add_argument("--disable-dev-shm-usage")  # REQUIRED
+#         options.add_argument("--disable-gpu") # Also often recommended
+#         options.add_argument("--window-size=1920,1080") # Can be helpful
+#         options.add_argument('--log-level=3') # Suppress logs
 
-        # In Streamlit Cloud, Selenium should automatically find chromedriver
-        # if it's installed via packages.txt and in the PATH.
-        # We try initializing without specifying executable_path.
-        try:
-             # Let Selenium handle the driver path if installed via packages.txt
-             # No explicit 'service' needed if chromedriver is in PATH
-             driver = webdriver.Chrome(options=options)
-             status_messages.append("WebDriver initialized successfully using system PATH.")
-        except WebDriverException as e:
-             status_messages.append(f"WebDriver auto-init failed: {e}. Trying with default Service()...")
-             # Fallback: Sometimes explicitly using Service() helps Selenium find it
-             try:
-                 service = Service() # Initialize without path
-                 driver = webdriver.Chrome(service=service, options=options)
-                 status_messages.append("WebDriver initialized successfully using default Service().")
-             except WebDriverException as e2:
-                 status_messages.append(f"WebDriver explicit Service() failed: {e2}")
-                 # Updated message based on packages.txt correction
-                 status_messages.append("Ensure 'chromium' and 'chromium-driver' are in packages.txt")
-                 st.error("Fatal: Could not initialize WebDriver in the cloud environment. Check packages.txt.")
-                 return None, status_messages # Critical failure
+#         # In Streamlit Cloud, Selenium should automatically find chromedriver
+#         # if it's installed via packages.txt and in the PATH.
+#         # We try initializing without specifying executable_path.
+#         try:
+#              # Let Selenium handle the driver path if installed via packages.txt
+#              # No explicit 'service' needed if chromedriver is in PATH
+#              driver = webdriver.Chrome(options=options)
+#              status_messages.append("WebDriver initialized successfully using system PATH.")
+#         except WebDriverException as e:
+#              status_messages.append(f"WebDriver auto-init failed: {e}. Trying with default Service()...")
+#              # Fallback: Sometimes explicitly using Service() helps Selenium find it
+#              try:
+#                  service = Service() # Initialize without path
+#                  driver = webdriver.Chrome(service=service, options=options)
+#                  status_messages.append("WebDriver initialized successfully using default Service().")
+#              except WebDriverException as e2:
+#                  status_messages.append(f"WebDriver explicit Service() failed: {e2}")
+#                  # Updated message based on packages.txt correction
+#                  status_messages.append("Ensure 'chromium' and 'chromium-driver' are in packages.txt")
+#                  st.error("Fatal: Could not initialize WebDriver in the cloud environment. Check packages.txt.")
+#                  return None, status_messages # Critical failure
 
-        status_messages.append(f"Loading URL for '{search_term}': {url}")
-        driver.get(url)
-        driver.implicitly_wait(10) # Give page elements time to appear
-        time.sleep(5) # Initial wait after load
+#         status_messages.append(f"Loading URL for '{search_term}': {url}")
+#         driver.get(url)
+#         driver.implicitly_wait(10) # Give page elements time to appear
+#         time.sleep(5) # Initial wait after load
 
-        # --- Scrolling Logic ---
-        # (Keep scrolling logic as before, but add more robust waits/error handling)
-        screen_height = driver.execute_script("return window.screen.height;")
-        last_height = driver.execute_script("return document.body.scrollHeight")
-        scroll_count = 0
-        status_messages.append(f"Starting scroll process for '{search_term}'...")
-        scroll_status_placeholder = st.empty()
+#         # --- Scrolling Logic ---
+#         # (Keep scrolling logic as before, but add more robust waits/error handling)
+#         screen_height = driver.execute_script("return window.screen.height;")
+#         last_height = driver.execute_script("return document.body.scrollHeight")
+#         scroll_count = 0
+#         status_messages.append(f"Starting scroll process for '{search_term}'...")
+#         scroll_status_placeholder = st.empty()
 
-        while True:
-            try:
-                # Scroll down
-                driver.execute_script(f"window.scrollTo(0, {last_height + screen_height});")
-                time.sleep(0.5) # Short pause between scrolls
-                driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);") # Try to ensure bottom
-                scroll_count += 1
-                wait_time = scroll_pause_time + (scroll_count * 0.1) # Dynamic wait
-                scroll_status_placeholder.info(f"Term '{search_term}': Scroll attempt {scroll_count}, waiting {wait_time:.1f}s...")
-                time.sleep(wait_time)
+#         while True:
+#             try:
+#                 # Scroll down
+#                 driver.execute_script(f"window.scrollTo(0, {last_height + screen_height});")
+#                 time.sleep(0.5) # Short pause between scrolls
+#                 driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);") # Try to ensure bottom
+#                 scroll_count += 1
+#                 wait_time = scroll_pause_time + (scroll_count * 0.1) # Dynamic wait
+#                 scroll_status_placeholder.info(f"Term '{search_term}': Scroll attempt {scroll_count}, waiting {wait_time:.1f}s...")
+#                 time.sleep(wait_time)
 
-                # Check new height
-                new_height = driver.execute_script("return document.body.scrollHeight")
-                if new_height == last_height:
-                    # Sometimes content loads just after height stabilizes, try one more time
-                    scroll_status_placeholder.info(f"Term '{search_term}': Height stable, checking one last time...")
-                    time.sleep(scroll_pause_time * 1.5) # Longer wait
-                    new_height = driver.execute_script("return document.body.scrollHeight")
-                    if new_height == last_height:
-                        status_messages.append(f"Reached end of page for '{search_term}'.")
-                        break
+#                 # Check new height
+#                 new_height = driver.execute_script("return document.body.scrollHeight")
+#                 if new_height == last_height:
+#                     # Sometimes content loads just after height stabilizes, try one more time
+#                     scroll_status_placeholder.info(f"Term '{search_term}': Height stable, checking one last time...")
+#                     time.sleep(scroll_pause_time * 1.5) # Longer wait
+#                     new_height = driver.execute_script("return document.body.scrollHeight")
+#                     if new_height == last_height:
+#                         status_messages.append(f"Reached end of page for '{search_term}'.")
+#                         break
 
-                last_height = new_height
+#                 last_height = new_height
 
-                if scroll_count >= max_scrolls:
-                    status_messages.append(f"Reached max scroll attempts ({max_scrolls}) for '{search_term}'.")
-                    break
+#                 if scroll_count >= max_scrolls:
+#                     status_messages.append(f"Reached max scroll attempts ({max_scrolls}) for '{search_term}'.")
+#                     break
 
-            except TimeoutException:
-                 status_messages.append(f"Warning: Timeout during scroll execution for '{search_term}'. Page might be slow or stuck.")
-                 time.sleep(scroll_pause_time * 2) # Longer wait after timeout
-            except WebDriverException as scroll_err:
-                 status_messages.append(f"Warning: WebDriver error during scroll for '{search_term}': {scroll_err}. Trying to continue...")
-                 time.sleep(scroll_pause_time)
+#             except TimeoutException:
+#                  status_messages.append(f"Warning: Timeout during scroll execution for '{search_term}'. Page might be slow or stuck.")
+#                  time.sleep(scroll_pause_time * 2) # Longer wait after timeout
+#             except WebDriverException as scroll_err:
+#                  status_messages.append(f"Warning: WebDriver error during scroll for '{search_term}': {scroll_err}. Trying to continue...")
+#                  time.sleep(scroll_pause_time)
 
 
-        scroll_status_placeholder.empty()
-        status_messages.append(f"Scrolling finished for '{search_term}'.")
+#         scroll_status_placeholder.empty()
+#         status_messages.append(f"Scrolling finished for '{search_term}'.")
 
-        # Get page source
-        status_messages.append(f"Getting page source for '{search_term}'...")
-        html = driver.page_source
-        if not html or len(html) < 500: # Basic check for empty or minimal HTML
-             status_messages.append(f"Warning: Page source seems empty or too small for '{search_term}'. Check if the page loaded correctly.")
-             # Decide whether to continue or return early based on severity
+#         # Get page source
+#         status_messages.append(f"Getting page source for '{search_term}'...")
+#         html = driver.page_source
+#         if not html or len(html) < 500: # Basic check for empty or minimal HTML
+#              status_messages.append(f"Warning: Page source seems empty or too small for '{search_term}'. Check if the page loaded correctly.")
+#              # Decide whether to continue or return early based on severity
 
-        status_messages.append(f"Parsing HTML for '{search_term}'...")
-        soup = BeautifulSoup(html, "lxml")
+#         status_messages.append(f"Parsing HTML for '{search_term}'...")
+#         soup = BeautifulSoup(html, "lxml")
 
-        # --- Data Extraction Logic ---
-        # (Keep extraction logic as before - selectors remain the fragile part)
-        ad_block_selector = 'div.xh8yej3' # VERIFY THIS SELECTOR REGULARLY
-        ad_blocks = soup.select(ad_block_selector)
-        status_messages.append(f"Found {len(ad_blocks)} potential ad blocks for '{search_term}'.")
+#         # --- Data Extraction Logic ---
+#         # (Keep extraction logic as before - selectors remain the fragile part)
+#         ad_block_selector = 'div.xh8yej3' # VERIFY THIS SELECTOR REGULARLY
+#         ad_blocks = soup.select(ad_block_selector)
+#         status_messages.append(f"Found {len(ad_blocks)} potential ad blocks for '{search_term}'.")
 
-        # ... (rest of the extraction loop is identical to previous version) ...
-        extraction_count = 0
-        for i, ad_block in enumerate(ad_blocks):
-            # (Same extraction logic for status, text, media_url)
-            # ...
-            status = "Not Found" # Placeholder
-            ad_text = "Not Found" # Placeholder
-            media_url = "Not Found" # Placeholder
-            count = 1
-            # --- [INSERT EXACT EXTRACTION CODE FROM PREVIOUS VERSION HERE] ---
-             # --- Extract Status ---
-            try:
-                status_selectors = [
-                    'span.x1fp01tm', 'div[role="button"] > span', 'div > span[dir="auto"] > span[dir="auto"]'
-                ]
-                # Simplified status extraction (take first non-empty match)
-                for selector in status_selectors:
-                    elem = ad_block.select_one(selector)
-                    if elem and elem.text.strip():
-                        status = elem.text.strip()
-                        break
-            except Exception: pass # Ignore errors in finding elements
+#         # ... (rest of the extraction loop is identical to previous version) ...
+#         extraction_count = 0
+#         for i, ad_block in enumerate(ad_blocks):
+#             # (Same extraction logic for status, text, media_url)
+#             # ...
+#             status = "Not Found" # Placeholder
+#             ad_text = "Not Found" # Placeholder
+#             media_url = "Not Found" # Placeholder
+#             count = 1
+#             # --- [INSERT EXACT EXTRACTION CODE FROM PREVIOUS VERSION HERE] ---
+#              # --- Extract Status ---
+#             try:
+#                 status_selectors = [
+#                     'span.x1fp01tm', 'div[role="button"] > span', 'div > span[dir="auto"] > span[dir="auto"]'
+#                 ]
+#                 # Simplified status extraction (take first non-empty match)
+#                 for selector in status_selectors:
+#                     elem = ad_block.select_one(selector)
+#                     if elem and elem.text.strip():
+#                         status = elem.text.strip()
+#                         break
+#             except Exception: pass # Ignore errors in finding elements
 
-            # --- Extract Ad Text ---
-            try:
-                text_selectors = [
-                    'div[data-ad-preview="message"]', 'div._7jyr',
-                    'div > div > span[dir="auto"]', 'div[style*="text-align"]'
-                ]
-                for selector in text_selectors:
-                    elem = ad_block.select_one(selector)
-                    if elem:
-                        all_texts = elem.find_all(string=True, recursive=True)
-                        full_text = ' '.join(filter(None, (t.strip() for t in all_texts)))
-                        cleaned_text = ' '.join(full_text.split())
-                        if cleaned_text and cleaned_text.lower() not in ["sponsored", "suggested for you", ""]:
-                            ad_text = cleaned_text
-                            break # Found good text
-                if ad_text in ["Not Found", ""]: ad_text = "Not Found"
-            except Exception: pass
+#             # --- Extract Ad Text ---
+#             try:
+#                 text_selectors = [
+#                     'div[data-ad-preview="message"]', 'div._7jyr',
+#                     'div > div > span[dir="auto"]', 'div[style*="text-align"]'
+#                 ]
+#                 for selector in text_selectors:
+#                     elem = ad_block.select_one(selector)
+#                     if elem:
+#                         all_texts = elem.find_all(string=True, recursive=True)
+#                         full_text = ' '.join(filter(None, (t.strip() for t in all_texts)))
+#                         cleaned_text = ' '.join(full_text.split())
+#                         if cleaned_text and cleaned_text.lower() not in ["sponsored", "suggested for you", ""]:
+#                             ad_text = cleaned_text
+#                             break # Found good text
+#                 if ad_text in ["Not Found", ""]: ad_text = "Not Found"
+#             except Exception: pass
 
-            # --- Extract Page ID ---
-            try:
-                text_selectors = [
-                        'a.xt0psk2.x1hl2dhg.xt0b8zv.x8t9es0.x1fvot60.xxio538.xjnfcd9.xq9mrsl.x1yc453h.x1h4wwuj.x1fcty0u']
-                for selector in text_selectors:
-                    elem = ad_block.select_one(selector)
-                    if elem:
-                        page_name = elem.find_all(string=True, recursive=True)
-                        page_name =list(page_name)[0]
-                        page_id = elem.get("href", "Not Found")
-                        page_id = page_id.split("/")[3]
+#             # --- Extract Page ID ---
+#             try:
+#                 text_selectors = [
+#                         'a.xt0psk2.x1hl2dhg.xt0b8zv.x8t9es0.x1fvot60.xxio538.xjnfcd9.xq9mrsl.x1yc453h.x1h4wwuj.x1fcty0u']
+#                 for selector in text_selectors:
+#                     elem = ad_block.select_one(selector)
+#                     if elem:
+#                         page_name = elem.find_all(string=True, recursive=True)
+#                         page_name =list(page_name)[0]
+#                         page_id = elem.get("href", "Not Found")
+#                         page_id = page_id.split("/")[3]
 
-                if page_id in ["Not Found", ""]: page_id = "Not Found"
-                if page_name in ["Not Found", ""]: page_id = "Not Found"
+#                 if page_id in ["Not Found", ""]: page_id = "Not Found"
+#                 if page_name in ["Not Found", ""]: page_id = "Not Found"
 
-                # page_id = str(page_id)
-            except Exception:
-                page_id ='fail'
-                page_name = 'fail'
+#                 # page_id = str(page_id)
+#             except Exception:
+#                 page_id ='fail'
+#                 page_name = 'fail'
 
-# --- Extract count Text ---
-            try:
-                count_selectors = [
-                   'div.x6s0dn4.x78zum5.xsag5q8 span[dir="auto"]', # Specific parent + specific span type
-                 'div.x6s0dn4.x78zum5.xsag5q8 span', # General span  
-                ]
-                for selector in count_selectors:
-                    elem = ad_block.select_one(selector)
-                    if elem:
-                        all_texts = elem.find_all(string=True, recursive=True)
-                        full_text = ' '.join(filter(None, (t.strip() for t in all_texts)))
-                        cleaned_text = ' '.join(full_text.split())
-                        if cleaned_text and cleaned_text.lower() not in ["sponsored", "suggested for you", ""]:
-                            count = int("".join(filter(str.isdigit, cleaned_text)))
-                            break # Found good text
-                if count in ["Not Found", ""]: ad_text = "Not Found"
-            except Exception: pass
+# # --- Extract count Text ---
+#             try:
+#                 count_selectors = [
+#                    'div.x6s0dn4.x78zum5.xsag5q8 span[dir="auto"]', # Specific parent + specific span type
+#                  'div.x6s0dn4.x78zum5.xsag5q8 span', # General span  
+#                 ]
+#                 for selector in count_selectors:
+#                     elem = ad_block.select_one(selector)
+#                     if elem:
+#                         all_texts = elem.find_all(string=True, recursive=True)
+#                         full_text = ' '.join(filter(None, (t.strip() for t in all_texts)))
+#                         cleaned_text = ' '.join(full_text.split())
+#                         if cleaned_text and cleaned_text.lower() not in ["sponsored", "suggested for you", ""]:
+#                             count = int("".join(filter(str.isdigit, cleaned_text)))
+#                             break # Found good text
+#                 if count in ["Not Found", ""]: ad_text = "Not Found"
+#             except Exception: pass
 
-            # --- Extract Image or Video Poster URL ---
-            try:
-                media_url = "Not Found"
-                img_selectors = [
-                    'img.x168nmei', 'img.xt7dq6l', 'img[referrerpolicy="origin-when-cross-origin"]',
-                    'div[role="img"] > img', 'img:not([width="16"]):not([height="16"])'
-                ]
-                # Look for images
-                for selector in img_selectors:
-                     img_elem = ad_block.select_one(selector)
-                     if img_elem and img_elem.has_attr('src'):
-                         src = img_elem['src']
-                         if 'data:image' not in src and '/emoji.php/' not in src and 'static.xx.fbcdn.net/rsrc.php' not in src and "s60x60" not in src:
-                             media_url = src
-                             break
-                # Look for video posters if no image found
-                if media_url == "Not Found" or 1==1:
-                    video_selectors = [
-                        'video.x1lliihq', 'video.xvbhtw8', 'video[poster]'
-                    ]
-                    for selector in video_selectors:
-                         vid_elem = ad_block.select_one(selector)
-                        #  st.text(vid_elem)
-                         if vid_elem and vid_elem.has_attr('src'):
-                            media_url = vid_elem['src']
-                            break
+#             # --- Extract Image or Video Poster URL ---
+#             try:
+#                 media_url = "Not Found"
+#                 img_selectors = [
+#                     'img.x168nmei', 'img.xt7dq6l', 'img[referrerpolicy="origin-when-cross-origin"]',
+#                     'div[role="img"] > img', 'img:not([width="16"]):not([height="16"])'
+#                 ]
+#                 # Look for images
+#                 for selector in img_selectors:
+#                      img_elem = ad_block.select_one(selector)
+#                      if img_elem and img_elem.has_attr('src'):
+#                          src = img_elem['src']
+#                          if 'data:image' not in src and '/emoji.php/' not in src and 'static.xx.fbcdn.net/rsrc.php' not in src and "s60x60" not in src:
+#                              media_url = src
+#                              break
+#                 # Look for video posters if no image found
+#                 if media_url == "Not Found" or 1==1:
+#                     video_selectors = [
+#                         'video.x1lliihq', 'video.xvbhtw8', 'video[poster]'
+#                     ]
+#                     for selector in video_selectors:
+#                          vid_elem = ad_block.select_one(selector)
+#                         #  st.text(vid_elem)
+#                          if vid_elem and vid_elem.has_attr('src'):
+#                             media_url = vid_elem['src']
+#                             break
 
 
 
                 
 
 
-            except Exception: pass
-            # --- Extract Ad Link using CSS Selectors ---
-            ad_link = "Not Found"
-            found_link_tag = None
-            # Define potential CSS selectors for the link, ordered from most specific/reliable to more general
-            link_selectors = [
-                'a[href^="https://l.facebook.com/l.php?u="]', # Starts with FB redirect + contains domain
-                'div._7jyr + a[target="_blank"]', # Positional selector + target attribute
-                'a[data-lynx-mode="hover"]',       # Just the data attribute
-                'a[href^="https://l.facebook.com/l.php?u="]' # Just the FB redirect start
-            ]
+#             except Exception: pass
+#             # --- Extract Ad Link using CSS Selectors ---
+#             ad_link = "Not Found"
+#             found_link_tag = None
+#             # Define potential CSS selectors for the link, ordered from most specific/reliable to more general
+#             link_selectors = [
+#                 'a[href^="https://l.facebook.com/l.php?u="]', # Starts with FB redirect + contains domain
+#                 'div._7jyr + a[target="_blank"]', # Positional selector + target attribute
+#                 'a[data-lynx-mode="hover"]',       # Just the data attribute
+#                 'a[href^="https://l.facebook.com/l.php?u="]' # Just the FB redirect start
+#             ]
 
-            try:
-                for selector in link_selectors:
-                    # print(f"Trying selector: {selector}") # Optional debug print
-                    elem = ad_block.select_one(selector)
-                    # Check if an element was found and if it has an 'href' attribute
-                    if elem and elem.has_attr('href'):
-                        # print(f"Selector matched: {selector}") # Optional debug print
-                        found_link_tag = elem
-                        ad_link = found_link_tag['href'] # Extract the href value
+#             try:
+#                 for selector in link_selectors:
+#                     # print(f"Trying selector: {selector}") # Optional debug print
+#                     elem = ad_block.select_one(selector)
+#                     # Check if an element was found and if it has an 'href' attribute
+#                     if elem and elem.has_attr('href'):
+#                         # print(f"Selector matched: {selector}") # Optional debug print
+#                         found_link_tag = elem
+#                         ad_link = found_link_tag['href'] # Extract the href value
 
 
-                        if ad_link and ad_link != "Not Found" and "l.facebook.com/l.php" in ad_link:
-                            try:
-                                parsed_url = urlparse(ad_link)
-                                query_params = parse_qs(parsed_url.query)
+#                         if ad_link and ad_link != "Not Found" and "l.facebook.com/l.php" in ad_link:
+#                             try:
+#                                 parsed_url = urlparse(ad_link)
+#                                 query_params = parse_qs(parsed_url.query)
                                 
-                                # Check if the 'u' parameter exists
-                                if 'u' in query_params:
-                                    # parse_qs returns a list for each param, get the first value
-                                    encoded_url = query_params['u'][0]
-                                    # Decode the URL
-                                    ad_link = unquote(encoded_url)
-                                else:
-                                    ad_link = "Redirect link found, but 'u' parameter missing."
+#                                 # Check if the 'u' parameter exists
+#                                 if 'u' in query_params:
+#                                     # parse_qs returns a list for each param, get the first value
+#                                     encoded_url = query_params['u'][0]
+#                                     # Decode the URL
+#                                     ad_link = unquote(encoded_url)
+#                                 else:
+#                                     ad_link = "Redirect link found, but 'u' parameter missing."
                                     
-                            except Exception as e:
-                                print(f"Error parsing or decoding redirect URL: {e}")
-                                actual_destination_url = "Error processing redirect link"
-                        elif ad_link and ad_link != "Not Found":
-                            # If it wasn't a facebook redirect link, the extracted link is the actual one
-                            ad_link = ad_link
-                        break # Stop searching once a link is found
-            except Exception as e:
-                print(f"An error occurred while selecting the link: {e}")
-                ad_link = "Error finding link"
-            # --- [END OF EXTRACTION CODE] ---
+#                             except Exception as e:
+#                                 print(f"Error parsing or decoding redirect URL: {e}")
+#                                 actual_destination_url = "Error processing redirect link"
+#                         elif ad_link and ad_link != "Not Found":
+#                             # If it wasn't a facebook redirect link, the extracted link is the actual one
+#                             ad_link = ad_link
+#                         break # Stop searching once a link is found
+#             except Exception as e:
+#                 print(f"An error occurred while selecting the link: {e}")
+#                 ad_link = "Error finding link"
+#             # --- [END OF EXTRACTION CODE] ---
 
 
-            # Append data - include the search_term
-            # ** NOTE: Filtering based on Text/Media presence is now done AFTER collecting all rows **
-            ads_data.append({ 
-                 'Search_Term': search_term,
-                 'Status': status,
-                 'Text': ad_text,
-                 'Count': count,
-                 'Media_URL': media_url,
-                 'Landing_Page': ad_link,
-                 'Page ID' :page_id,
-                 'Page Name' : page_name
-             })
-            extraction_count += 1 # Count raw extracted rows
+#             # Append data - include the search_term
+#             # ** NOTE: Filtering based on Text/Media presence is now done AFTER collecting all rows **
+#             ads_data.append({ 
+#                  'Search_Term': search_term,
+#                  'Status': status,
+#                  'Text': ad_text,
+#                  'Count': count,
+#                  'Media_URL': media_url,
+#                  'Landing_Page': ad_link,
+#                  'Page ID' :page_id,
+#                  'Page Name' : page_name
+#              })
+#             extraction_count += 1 # Count raw extracted rows
 
-        # --- End of Extraction Loop ---
+#         # --- End of Extraction Loop ---
 
-        final_message = f"Extracted {extraction_count} raw ad data entries for term '{search_term}' (before filtering)."
-        status_messages.append(final_message)
+#         final_message = f"Extracted {extraction_count} raw ad data entries for term '{search_term}' (before filtering)."
+#         status_messages.append(final_message)
 
-        if ads_data:
-            df = pd.DataFrame(ads_data)
-            # Note: Filtering is now applied AFTER concatenation in the main app logic
-            return df, status_messages # Return the unfiltered data for this term
-        else:
-            status_messages.append(f"No raw data extracted into DataFrame for '{search_term}'.")
-            return pd.DataFrame(), status_messages # Return empty DF
+#         if ads_data:
+#             df = pd.DataFrame(ads_data)
+#             # Note: Filtering is now applied AFTER concatenation in the main app logic
+#             return df, status_messages # Return the unfiltered data for this term
+#         else:
+#             status_messages.append(f"No raw data extracted into DataFrame for '{search_term}'.")
+#             return pd.DataFrame(), status_messages # Return empty DF
 
-    except WebDriverException as e:
-        error_msg = f"WebDriver Error during operation for term '{search_term}': {e}\n{traceback.format_exc()}"
-        status_messages.append(error_msg)
-        st.error(f"WebDriver Error occurred for '{search_term}'. Check logs. The cloud environment might be unstable or the page blocked.")
-        return None, status_messages # Indicate failure
-    except Exception as e:
-        error_msg = f"Unexpected Error for term '{search_term}': {e}\n{traceback.format_exc()}"
-        status_messages.append(error_msg)
-        st.error(f"Unexpected Error occurred for '{search_term}'. Check logs.")
-        return None, status_messages # Indicate failure
+#     except WebDriverException as e:
+#         error_msg = f"WebDriver Error during operation for term '{search_term}': {e}\n{traceback.format_exc()}"
+#         status_messages.append(error_msg)
+#         st.error(f"WebDriver Error occurred for '{search_term}'. Check logs. The cloud environment might be unstable or the page blocked.")
+#         return None, status_messages # Indicate failure
+#     except Exception as e:
+#         error_msg = f"Unexpected Error for term '{search_term}': {e}\n{traceback.format_exc()}"
+#         status_messages.append(error_msg)
+#         st.error(f"Unexpected Error occurred for '{search_term}'. Check logs.")
+#         return None, status_messages # Indicate failure
 
-    finally:
-        if driver:
-            status_messages.append(f"Closing WebDriver for '{search_term}'...")
+#     finally:
+#         if driver:
+#             status_messages.append(f"Closing WebDriver for '{search_term}'...")
+#             try:
+#                 driver.quit()
+#                 status_messages.append(f"WebDriver closed for '{search_term}'.")
+#             except Exception as quit_err:
+#                  status_messages.append(f"Error closing WebDriver for '{search_term}': {quit_err}")
+
+
+def scrape_google_ads(term, max_creatives = 200):
+
+    ads_data= []
+    creatives = a.get_creative_Ids(term, max_creatives) # Get 200 creatives if available
+    if creatives["Ad Count"]:
+        advertisor_id = creatives["Advertisor Id"]
+        for creative_id in creatives["Creative_Ids"]:
             try:
-                driver.quit()
-                status_messages.append(f"WebDriver closed for '{search_term}'.")
-            except Exception as quit_err:
-                 status_messages.append(f"Error closing WebDriver for '{search_term}': {quit_err}")
+                details_json =a.get_detailed_ad(advertisor_id,creative_id)
+                print(details_json)
+                ad_title = details_json['Ad Title']
+                landing_page = details_json['Ad Link']
+                if details_json['Ad Title'] is '':
+                    # st.text('souping')
+                    req = requests.get(details_json['Ad Link'])
+                    html = req.text
+                    soup = BeautifulSoup(html, "html.parser")
+                    elem = soup.find("a", attrs={"data-asoch-targets": re.compile(r"ad0.*title|title.*ad0", re.I)})
+                    ad_title = elem.get_text(separator=" ", strip=True)
+                    # st.text('title' + ad_title)
+                    redirect_link = elem["href"]
+                    url_parse = urlparse(redirect_link)
+                    qs = parse_qs(url_parse.query)
+                    landing_page = qs['adurl'][0]
+            except:
+                pass
+
+
+            ads_data.append({ 
+                 'Search_Term': term,
+                #  'Status': status,
+                 'Text': ad_title,
+                 'Count': 1,
+                 'Media_URL': details_json['Ad Link'],
+                 'Landing_Page': landing_page,
+                #  'Page ID' :page_id,
+                #  'Page Name' : page_name
+                "Last_Shown" : details_json['Last Shown']
+             })
+
+    if len(ads_data) > 0:
+        return pd.DataFrame(ads_data)
+
+
+
 
 
 # Fetch a single title with a semaphore (concurrency limiter)
@@ -712,28 +762,28 @@ def get_html_content(url):
         driver.quit()
 
 # --- Streamlit App UI ---
-st.title("Facebook Ads Library Scraper")
+st.title("Google Ads Library Scraper")
 st.markdown("""
 Provide Base URL & Search Terms. Scrapes ads in the cloud, combines results, **filters for ads with Text & Media**, displays them, and optionally analyzes trends with Gemini.
 """)
 
 # --- Inputs ---
 st.subheader("Configuration")
-mode = st.radio("Select Search Mode",["General Search","Page Search"] , index=0)
+# mode = st.radio("Select Search Mode",["General Search","Page Search"] , index=0)
 
-if mode == 'General Search':
-    default_base_url = "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=keyword_exact_phrase&q="
-    base_url_template = st.text_input(
-        "Enter Base URL Template (ending with 'q=' or ready for term):",
-        default_base_url,
-        help="Example: https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q="
-    )
-if mode == 'Page Search':
-    default_base_url = "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id="
-    base_url_template = st.text_input(
-        "Enter Base URL Template (ending with 'view_all_page_id=' or ready for term):",
-        default_base_url,
-    )
+# if mode == 'General Search':
+#     default_base_url = "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=keyword_exact_phrase&q="
+#     base_url_template = st.text_input(
+#         "Enter Base URL Template (ending with 'q=' or ready for term):",
+#         default_base_url,
+#         help="Example: https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q="
+#     )
+# if mode == 'Page Search':
+#     default_base_url = "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id="
+#     base_url_template = st.text_input(
+#         "Enter Base URL Template (ending with 'view_all_page_id=' or ready for term):",
+#         default_base_url,
+#     )
 
 
 search_terms_input = st.text_area(
@@ -748,17 +798,14 @@ st.info("ℹ️ WebDriver configured for Streamlit Cloud.", icon="☁️")
 
 col1, col2 = st.columns(2)
 with col1:
-    scroll_pause = st.slider("Scroll Pause Time (seconds):", min_value=1, max_value=20, value=2, help="Base time between scrolls.")
-with col2:
-     max_scrolls = st.slider("Max Scroll Attempts:", min_value=0, max_value=75, value=15, help="Max scrolls per term.")
+    max_creatives = st.slider("Max creatives to pull", min_value=1, max_value=500, value=200)
+
 
 
 # --- Scrape Button and Logic ---
 if st.button("🚀 Scrape All Terms in Cloud", type="primary"):
     # --- [Identical validation logic as before] ---
-    if not base_url_template or not base_url_template.startswith("http"):
-        st.error("Please enter a valid Base URL Template.")
-    elif not search_terms_input:
+    if not search_terms_input:
         st.error("Please enter at least one search term.")
     else:
         search_terms = list(dict.fromkeys(term.strip() for term in search_terms_input.splitlines() if term.strip()))
@@ -780,28 +827,14 @@ if st.button("🚀 Scrape All Terms in Cloud", type="primary"):
             
 
 
-                if mode == 'General Search':
-                    if "?" in base_url_template:
-                        scrape_url = f"{base_url_template.split('?')[0]}?{base_url_template.split('?')[1]}&q={encoded_term}"
-                    else:
-                        scrape_url = f"{base_url_template}?q={encoded_term}"
-                    scrape_url = scrape_url.replace("?&", "?").replace("&&", "&").replace("= ", "=")
-                elif mode == "Page Search":
-                    if "?" in base_url_template:
-                        scrape_url = f"{base_url_template.split('?')[0]}?{base_url_template.split('?')[1]}&view_all_page_id={encoded_term}"
-                    else:
-                        scrape_url = f"{base_url_template}?view_all_page_id={encoded_term}"
-                    scrape_url = scrape_url.replace("?&", "?").replace("&&", "&").replace("= ", "=")
-
 
 
 
                 with st.spinner(f"Scraping '{term}'..." ):
-                    scraped_df, log_messages = scrape_facebook_ads(
-                        scrape_url, term, scroll_pause, max_scrolls
-                    )
-                    all_log_messages.extend(log_messages)
-
+                    scraped_df = scrape_google_ads(
+                         term, max_creatives)
+                    
+                # st.text(scraped_df.to_csv)
                 term_duration = time.time() - term_start_time
                 if scraped_df is not None: # Check for None (fatal error)
                     if not scraped_df.empty:
@@ -842,10 +875,6 @@ if st.button("🚀 Scrape All Terms in Cloud", type="primary"):
 
             # --- Display Logs ---
             st.subheader("Combined Scraping Log")
-            # Always show logs, even if no data was found
-            with st.expander("Show detailed log", expanded=False):
-                 log_text = "\n".join(all_log_messages)
-                 st.text_area("Log Output:", log_text, height=300)
 
 
 # --- Display Results Area (uses session state) ---
