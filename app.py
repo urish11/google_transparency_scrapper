@@ -637,27 +637,47 @@ if 'final_merged_df' not in st.session_state:
 #             except Exception as quit_err:
 #                  status_messages.append(f"Error closing WebDriver for '{search_term}': {quit_err}")
 
+def fix_mojibake(s: str) -> str:
+    try:
+        return s.encode("latin-1").decode("utf-8")
+    except Exception:
+        return s
+    
+
 
 def scrape_google_ads(term, max_creatives = 200):
 
     ads_data= []
     creatives = a.get_creative_Ids(term, max_creatives) # Get 200 creatives if available
+    info = st.info("Working on 1" )
     if creatives["Ad Count"]:
         advertisor_id = creatives["Advertisor Id"]
-        for creative_id in creatives["Creative_Ids"]:
+        for index,creative_id in enumerate(creatives["Creative_Ids"]): 
+            info.info(f"Working on {index+1}/{len(creatives['Creative_Ids'])}")
             try:
                 print(advertisor_id , creative_id)
                 details_json =a.get_detailed_ad(advertisor_id,creative_id)
+                # st.text(details_json) 
                 print(details_json)
                 ad_title = details_json['Ad Title']
                 landing_page = details_json['Ad Link']
-                if details_json['Ad Title'] == '':
+
+
+                if 'googleusercontent.com/ads/preview/content.js' in landing_page:
+                    r = requests.get(landing_page, headers={"User-Agent":"Mozilla/5.0"}).text
+
+                    clean = r.replace("\\x27", "'")
+
+                    ad_title = re.findall(r"'headline'\s*:\s*'([^']+)'", clean)[0]
+                    landing_page = re.findall( r"destination_url:\s*'([^']+)'", clean)[0]
+                if ad_title == '':
                     # st.text('souping')
                     req = requests.get(details_json['Ad Link'])
                     html = req.text
                     soup = BeautifulSoup(html, "html.parser")
                     elem = soup.find("a", attrs={"data-asoch-targets": re.compile(r"ad0.*title|title.*ad0", re.I)})
-                    ad_title = elem.get_text(separator=" ", strip=True)[0]
+                    
+                    ad_title = elem.get_text(separator=" ", strip=True)
                     # st.text('title' + ad_title)
                     redirect_link = elem["href"]
                     url_parse = urlparse(redirect_link)
@@ -665,17 +685,19 @@ def scrape_google_ads(term, max_creatives = 200):
                     landing_page = qs['adurl'][0]
                     # st.text(ad_title)
 
-                else:
+                if len(details_json['Ad Title']) > len(ad_title):
+                    # st.text("Aaaa" + details_json['Ad Title'][0] )
                     ad_title= details_json['Ad Title'][0]
             except Exception as e:
                 print(e)
 
             # st.text( ad_title)
+            # st.text( landing_page)
 
             ads_data.append({ 
                     'Search_Term': term,
                 #  'Status': status,
-                    'Text': ad_title,
+                    'Text': fix_mojibake(ad_title),
                     'Count': 1,
                     'Media_URL': details_json['Ad Link'],
                     'Landing_Page': landing_page,
