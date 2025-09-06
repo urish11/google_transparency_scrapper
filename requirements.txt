@@ -15,4 +15,4 @@ opencv-python-headless
 Google-Ads-Transparency-Scraper
 pytesseract
 selenium-wire
-blinker
+blinker==1.7.0
