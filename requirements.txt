@@ -13,3 +13,5 @@ imagehash
 pillow
 opencv-python-headless
 Google-Ads-Transparency-Scraper
+pytesseract
+seleniumwire
