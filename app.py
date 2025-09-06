@@ -428,43 +428,52 @@ def scrape_google_ads_image(url, search_term, scroll_pause_time=2, max_scrolls=5
         soup = BeautifulSoup(html, "lxml")
 
         # Your selector: adjust as needed
-        ad_block_selector = 'priority-creative-grid creative-preview a img'
-        imgs = soup.select(ad_block_selector)
-        img_srcs = [img["src"] for img in imgs if img.has_attr("src")]
+        ad_block_selector = 'priority-creative-grid creative-preview a'
+        ad_blocks = soup.select(ad_block_selector)
+        img_srcs = [img["src"] for img in ad_blocks if img.has_attr("src")]
         status_messages.append(f"Found {len(img_srcs)} potential ad imgs for '{search_term}'.")
 
         extraction_count = 0
-        for i, img_src in enumerate(img_srcs):
-            st.text(f"img_src {i} out of {len(img_srcs)}")
-            try:
-                media_url = img_src
-                raw = get_image_bytes_from_browser(driver, img_src)
-                if not raw:
-                    # If you want a strict no-network policy, replace with `continue`
-                    # or log and skip. For now we skip OCR when not found in cache.
-                    status_messages.append(f"Not in cache (skipped): {img_src}")
-                    continue
+        with st.expander("Log"):
+            for i, block in enumerate(ad_blocks):
+                st.text(f"img_src {i} out of {len(ad_blocks)}")
+                try:
+                    # landing_page
+                    # st.text(block)
+                    img_tag = block.find("img")
+                    media_url = img_tag["src"] if img_tag and img_tag.has_attr("src") else None
 
-                img = Image.open(BytesIO(raw)).convert("RGB")
-                text = pytesseract.image_to_string(img)
-                st.text(text)
-                ads_data.append({
-                    'Search_Term': search_term,
-                    'Text': text,
-                    'Count': 1,
-                    'Media_URL': media_url,
-                    'Landing_Page' : 'N\A'
-                })
-                extraction_count += 1
+                    href = block.get("href")
+                    st.text(f'href {href}')
 
-            except Exception as e:
-                st.text(e)
+
+                    raw = get_image_bytes_from_browser(driver, media_url)
+                    if not raw:
+                        # If you want a strict no-network policy, replace with `continue`
+                        # or log and skip. For now we skip OCR when not found in cache.
+                        status_messages.append(f"Not in cache (skipped): {media_url}")
+                        continue
+
+                    img = Image.open(BytesIO(raw)).convert("RGB")
+                    text = pytesseract.image_to_string(img)[0:140]
+                    st.text(text)
+                    ads_data.append({
+                        'Search_Term': search_term,
+                        'Text': text,
+                        'Count': 1,
+                        'Media_URL': media_url,
+                        'Landing_Page' : "https://adstransparency.google.com" + href
+                    })
+                    extraction_count += 1
+
+                except Exception as e:
+                    st.text(e)
 
         status_messages.append(f"Extracted {extraction_count} entries for '{search_term}' (before filtering).")
 
         if ads_data:
             df = pd.DataFrame(ads_data)
-            st.dataframe(df)
+            # st.dataframe(df)
             return df  # (you were returning df directly in the success path)
 
         return pd.DataFrame(), status_messages
